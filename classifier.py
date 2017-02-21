@@ -68,11 +68,11 @@ class Classifier:
 
     # --------------------------------------------------------------------------
     def create_state_RNN_graph(self, inputs):
-        # inputs b x (n_b+o) x 2*hRNN
+        # inputs b x (n_b+o) x 2*hRNN+1
         with tf.variable_scope('state_RNN_graph'):
             # inputs preprocessing
-            fw_inputs = inputs[:,:self.n_beats,:] #b x n_b x 2*hRNN
-            bw_inputs = tf.reverse(inputs, [False, True, False]) #b x (n_b+o) x 2*hRNN
+            fw_inputs = inputs[:,:self.n_beats,:] #b x n_b x 2*hRNN+1
+            bw_inputs = tf.reverse(inputs, [False, True, False]) #b x (n_b+o) x 2*hRNN+1
 
             fw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN)
             bw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN)
@@ -161,16 +161,18 @@ class Classifier:
         self.keep_prob = tf.placeholder(tf.float32)
 
         states = self.create_RNN_graph(self.inputs, self.sequence_length)
+            # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
-        states_con = tf.concat(1, states) #b*(n_b+o) x 2*hRNN
+        states_con = tf.concat(1, list(states) +\
+            [tf.expand_dims(tf.cast(self.sequence_length/100, tf.float32), 1)]) #b*(n_b+o) x 2*hRNN+1
 
         states_rs = tf.reshape(states_con,
-            [self.batch_size, self.n_beats+self.overlap, 2*self.nHiddenRNN])
-            #b x (n_b+o) x 2*hRNN
+            [self.batch_size, self.n_beats+self.overlap, 2*self.nHiddenRNN+1])
+            #b x (n_b+o) x 2*hRNN+1
 
         RNNs = self.create_state_RNN_graph(states_rs) #b*n_b x 2*hRNN
 
-        FC = self.create_FC_graph(RNNs) #b*(n_b+o) x hFC
+        FC = self.create_FC_graph(RNNs) #b*n_b x hFC
 
         logits = tf.contrib.layers.fully_connected(
             inputs=FC,
@@ -178,9 +180,9 @@ class Classifier:
             activation_fn=None,
             weights_initializer=tf.contrib.layers.xavier_initializer(),
             biases_initializer=tf.zeros_initializer,
-            trainable=True) #b*(n_b+o) x len(REQUIRED_DISEASES)
+            trainable=True) #b*n_b x len(REQUIRED_DISEASES)
 
-        self.predicted_events = tf.sigmoid(logits) #b*(n_b+o) x len(REQUIRED_DISEASES)
+        self.predicted_events = tf.sigmoid(logits) #b*n_b x len(REQUIRED_DISEASES)
 
         self.cost = self.create_cost_graph(logits,
             self.target_events[:self.batch_size*self.n_beats, :]) #scalar
@@ -231,77 +233,47 @@ class Classifier:
 
 
     #############################################################################################################
-    def predicting_events_with_chunks(self, path_to_file, n_chunks=128, overlap=700, path_to_predicted_beats = None, path_to_model = 'models/cl'):
+    def predicting_events(self, path_to_file, path_to_predicted_beats = None, path_to_model = 'models/cl'):
         predicting_time = time.time()
         print('\n\n\n\t----==== Predicting beats ====----')
         #load model
         self.load_model(path_to_model)
         
         data = np.load(path_to_file).item()
+
+        gen = utils.step_generator(data,
+                   n_frames = N_BEATS,
+                   overlap = OVERLAP,
+                   get_data = False,
+                   get_delta_coded_data = True,
+                   get_events = False)
         
-        #padding end of file with zeros
-        channels = misc.get_channels(data)
-        ch_len = len(channels[0])
-        padd_len = 2 * self.n_step * self.windows_size + self.overlap * self.windows_size
-        channels = [np.concatenate((channel, np.linspace(channel[-1], 0, padd_len)), axis = 0) for channel in channels]
-        data = misc.write_channels(data, channels)
+        result = np.zeros([len(data['beats']), len(REQUIRED_DISEASES)])
 
-        chunked_data = utils.chunking_data(data, overlap=overlap, n_chunks=n_chunks)
-        generators = []
-        for i in range(len(chunked_data)):
-            gen = utils.step_generator(chunked_data[i],
-                                       n_steps = self.n_step,
-                                       windows_size = self.windows_size,
-                                       n_channel = self.n_channel,
-                                       overlap = self.overlap,
-                                       get_data = False,
-                                       get_delta_coded_data = True,
-                                       get_beats_present=True)
-            generators.append(gen)
-
-        data_loader = utils.LoadDataFileShuffling(path_to_data = os.path.dirname(path_to_file),
-                                                  batch_size = 1,
-                                                  n_steps = N_STEP,
-                                                  windows_size = WINDOWS_SIZE,
-                                                  n_channel = N_CHANNELS,
-                                                  overlap = OVERLAP,
-                                                  get_data = False,
-                                                  get_delta_coded_data = True,
-                                                  get_beats_present = True,
-                                                  verbose = VERBOSE)
-        data_loader.generators = generators
-        data_loader.batch_size = n_chunks
-
-        #result = [np.zeros([0, len(REQUIRED_DISEASES)]) for i in range(len(generators))]
-        result = [np.zeros([len(chunk['beats']), len(REQUIRED_DISEASES)]) for chunk in chunked_data]
-
-        n_batches = (len(misc.get_channels(chunked_data[0])[0]) - self.overlap * self.windows_size) // (self.n_step * self.windows_size)
+        n_batches = (data['beats'].shape[0] - self.overlap) // self.n_beats + 10
         forward_pass_time = 0
         for current_iter in tqdm(range(n_batches)):
-            batch = data_loader.get_batch()
-            feedDict = {self.inputX_delta_coded : batch['delta_coded_data'],
-                        self.input_beats : (batch['beats_present'] > -0.5).astype(int),
+            try:
+                batch = next(gen)
+            except StopIteration:
+                break
+            feedDict = {self.inputs : batch['delta_coded_data'],
+                        self.sequence_length : batch['sequence_length'],
                         self.keep_prob : 1}
 
             start_time = time.time()
-            res = self.sess.run(self.predicted_events, feed_dict = feedDict) #b*s x len(REQUIRED_DISEASES)
+            res = self.sess.run(self.predicted_events, feed_dict = feedDict) #n_b x len(REQUIRED_DISEASES)
             forward_pass_time = forward_pass_time + (time.time() - start_time)
-            res = res.reshape([len(generators), N_STEP, len(REQUIRED_DISEASES)]) #b x s x len(REQUIRED_DISEASES)
-            list_of_res = list(res)
-            for i,r in enumerate(list_of_res):
-                mask = batch['beats_present'][i,self.n_step] > -0.5 #b x s
-                inds = (batch['beats_present'][i,self.n_step][mask] - 1).astype(int)
-                result[i][inds,:] = r[mask,:]
-
-        restored_data = utils.gathering_data_from_chunks(data, list_of_res = result, overlap=overlap, n_chunks=n_chunks)
-
+            s = current_iter*self.n_beats
+            e = s + self.n_beats
+            result[s:e, :] = res
+            
         if path_to_predicted_beats is not None:
-            np.save(path_to_predicted_beats, restored_data)
+            np.save(path_to_predicted_beats, result)
             print('\nfile saved ', path_to_predicted_beats)
 
         print('forward_pass_time = ', forward_pass_time)
         print('predicting_time = ', time.time() - predicting_time)
-        return restored_data
 
 # testing #####################################################################################################################
 """

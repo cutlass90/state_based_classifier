@@ -30,13 +30,12 @@ class LoadDataFileShuffling:
                  verbose = False):
 
         self.batch_size = batch_size
-        self.path_to_data = path_to_data
-        self.paths_to_data = find_files(path = self.path_to_data,
-            file_type = '*.npy')
-        shuffle(self.paths_to_data)       
+        self.path_to_data = path_to_data      
         self.verbose = verbose
         self.gen_params = gen_params
         self.current_list_of_data = []
+        self.paths_to_data = find_files(path = path_to_data, file_type = '*.npy')
+        shuffle(self.paths_to_data)
         
         self.n_epoch = 0
         self.n_batches = 0
@@ -44,7 +43,7 @@ class LoadDataFileShuffling:
         if verbose == True:
             print('Find ' + str(len(self.paths_to_data)) + ' files.')
         
-        self.generators = [self.get_gen() for b in range(self.batch_size)]            
+        self.generators = [self.get_gen() for b in range(batch_size)]            
             
     ############################################################################
     def get_gen(self):
@@ -59,7 +58,8 @@ class LoadDataFileShuffling:
             if len(self.current_list_of_data) == 0:
                 self.current_list_of_data = np.load(self.paths_to_data[0])
                 if self.verbose:
-                    print("\nFile " + self.paths_to_data[0] + " was loaded")
+                    pass
+                    #print("\nFile " + self.paths_to_data[0] + " was loaded")
                 self.paths_to_data.remove(self.paths_to_data[0])
             data = self.current_list_of_data[-1]
             self.current_list_of_data = self.current_list_of_data[:-1]
@@ -67,10 +67,10 @@ class LoadDataFileShuffling:
             data['beats'] = data['beats'][:-1]
             ######
         else:
-            data = np.load(self.paths_to_data[0]).item()
             if self.verbose:
-                print("\nFile " + self.paths_to_data[0] + " was loaded")
-            self.paths_to_data.remove(self.paths_to_data[0])
+                pass
+                #print("\nFile " + self.paths_to_data[-1] + " was loaded")
+            data = np.load(self.paths_to_data.pop()).item()
         
         gen =  step_generator(data, **self.gen_params)
 
@@ -82,7 +82,7 @@ class LoadDataFileShuffling:
 
         for g, generator in enumerate(self.generators):
             n_attempts = 0
-            while (n_attempts < 20):
+            while (n_attempts < 200):
                 try:
                     batch.append(next(generator))
                     break
@@ -92,67 +92,70 @@ class LoadDataFileShuffling:
                     self.generators[g] = generator
                     n_attempts += 1
 
-                if n_attempts > 1:
-                    print('Can not load {} files in raw'.format(n_attempts))
+                if n_attempts > 190:
+                    raise ValueError("Can't load 190 files in raw.")
             self.n_batches += 1
-            preprocessed_batch = self.batch_preprocessing(batch)
-            preprocessed_batch['sequence_length'] =\
-            preprocessed_batch['sequence_length'].astype(np.int32)
-            
+        preprocessed_batch = self.batch_preprocessing(batch)
+
         return preprocessed_batch
 
     ############################################################################
     def batch_preprocessing(self, batch):
-        preprocessed_batch = {}
-        tot_beats = self.gen_params['n_beats']+self.gen_params['overlap']
+        # batch is a list of entities that were returned from generator.
+        # return events shape is [b*(n_frames+overlap), len(REQUIRED_DISEASES)]
+        # return normal_data shape is [b*(n_frames+overlap), x, n_channel]
+        # return sequence_length shape is [b*(n_frames+overlap)]
+        p_batch = {}
+        tot_beats = self.gen_params['n_frames']+self.gen_params['overlap']
 
-        preprocessed_batch['sequence_length'] = np.concatenate(
-            [d['sequence_length'] for d in batch], 0) \
-        if self.gen_params['get_data'] or self.gen_params['get_delta_coded_data'] \
-        else None
+        if self.gen_params['get_data'] or self.gen_params['get_delta_coded_data']:
+            p_batch['sequence_length'] = np.concatenate([d['sequence_length'] \
+                for d in batch], 0)
+            p_batch['sequence_length'] = p_batch['sequence_length'].astype(np.int32)
+        else:
+            None
+        
         
         if self.gen_params['get_data']:
-            preprocessed_batch['normal_data'] = np.zeros([
-                self.batch_size*tot_beats,
-                preprocessed_batch['sequence_length'].max(),
-                N_CHANNELS])
+            n_channels = batch[0]['normal_data'].shape[2]
+            data = np.zeros([self.batch_size*tot_beats,
+                p_batch['sequence_length'].max(), n_channels])
             for i, b in enumerate(batch):
                 s = i * tot_beats
                 e = s + tot_beats
-                preprocessed_batch['normal_data'][s:e,
-                0:b['normal_data'].shape[1],:] = b['normal_data']
+                data[s:e, :b['normal_data'].shape[1],:] = b['normal_data']
+            p_batch['normal_data'] = data
         else:
-            preprocessed_batch['normal_data'] = None
+            p_batch['normal_data'] = None
         
 
         if self.gen_params['get_delta_coded_data']:
-            preprocessed_batch['delta_coded_data'] = np.zeros([
-                self.batch_size*tot_beats,
-                preprocessed_batch['sequence_length'].max(),
-                N_CHANNELS])
+            n_channels = batch[0]['delta_coded_data'].shape[2]
+            data = np.zeros([self.batch_size*tot_beats,
+                p_batch['sequence_length'].max(), n_channels])
             for i, b in enumerate(batch):
                 s = i * tot_beats
                 e = s + tot_beats
-                preprocessed_batch['delta_coded_data'][s:e,
-                0:b['delta_coded_data'].shape[1],:] = b['delta_coded_data']
+                data[s:e, :b['delta_coded_data'].shape[1],:] = b['delta_coded_data']
+            p_batch['delta_coded_data'] = data
         else:
-            preprocessed_batch['delta_coded_data'] = None
+            p_batch['delta_coded_data'] = None
 
 
-        preprocessed_batch['events'] = np.concatenate(
+        p_batch['events'] = np.concatenate(
             [d['events'] for d in batch], 0) \
         if self.gen_params['get_events'] else None
         
         
         if self.gen_params['get_events']:
             mask = np.in1d(batch[0]['disease_name'], REQUIRED_DISEASES)
-            preprocessed_batch['events'] = preprocessed_batch['events'][:, mask]
+            p_batch['events'] = p_batch['events'][:, mask]
             #a = ~np.in1d(REQUIRED_DISEASES, batch['disease_name'][mask])
             #print(np.array(REQUIRED_DISEASES)[a])
             assert len(REQUIRED_DISEASES) == mask.sum(), \
             'Some of requierd diseases not found. Check REQUIRED_DISEASES.'
         
-        return preprocessed_batch
+        return p_batch
 
 ################################################################################
 def find_files(path, file_type):
@@ -174,7 +177,7 @@ def XavierRandomMatrixInitializer(in_dim, out_dim, constant=1):
 ################################################################################
 #@profile
 def step_generator(data,
-                   n_beats = 10,
+                   n_frames = 10,
                    overlap = 5,
                    get_data = False,
                    get_delta_coded_data = False,
@@ -182,23 +185,22 @@ def step_generator(data,
     
     #---------------------------------------------------------------------------
     def format_data(channels, start_beat, end_beat):
+        # padded data shape [n_frames+overlap, max_len, len(channels)]
         sequence_length = np.empty([0], np.int8)
-        max_len = 0
         channels_part_list = []
         for b in range(start_beat, end_beat):
-            channels_part = np.concatenate([np.expand_dims(channel[data['beats'][b]:data['beats'][b+1]], 1) for channel in channels], 1) #h x c (where h is variable value)
-            channels_part_list.append(channels_part) # list len n_beats+overlap of arrays h x c (where h is variable value)
+            channels_part = np.concatenate([np.expand_dims(
+                channel[data['beats'][b]:data['beats'][b+1]], 1)\
+                for channel in channels], 1) #h x c (where h is variable value)
+            channels_part_list.append(channels_part) # list len n_frames+overlap
+                #of arrays h x c (where h is variable value)
 
             sequence_length = np.append(sequence_length, channels_part.shape[0])
         max_len = sequence_length.max()
-        #padded_list = [np.pad(d, ((0,0),(0,max_len-d.shape[1])), 'constant') for d in channels_part_list] # list len n_beats+overlap of arrays c x max_len
-        padded_data = np.zeros([n_beats+overlap, max_len, len(channels)], np.float16)
+        padded_data = np.zeros([n_frames+overlap, max_len, len(channels)], np.float16)
         for i, channel_part in enumerate(channels_part_list):
             padded_data[i, 0:channel_part.shape[0], :] = channel_part
 
-        #padded_list = [np.zeros([len(channels), max_len], np.float16) for d in channels_part_list]
-        #padded_data = np.stack(padded_list, axis=0) # n_beats+overlap x c x max_len
-        
         return padded_data, sequence_length
     #---------------------------------------------------------------------------
 
@@ -207,7 +209,7 @@ def step_generator(data,
     if CONVERT_TO_CHANNELS is not None:
         channels = misc.convert_channels_from_easi(channels, CONVERT_TO_CHANNELS)
     
-    n_batches = (data['beats'].shape[0] - overlap) // n_beats - 1
+    n_batches = (data['beats'].shape[0] - overlap) // n_frames - 1
 
     if get_delta_coded_data:
         channels_coded = [np.hstack([[0], np.ediff1d(channel)]).astype(np.float16) for channel in channels]
@@ -215,8 +217,8 @@ def step_generator(data,
     for current_batch in range(n_batches):
         yield_res = {'normal_data':None, 'delta_coded_data':None, 'events':None, 'disease_name':data['disease_name'], 'sequence_length':None}
 
-        start_beat = current_batch*(n_beats)
-        end_beat = start_beat + n_beats + overlap
+        start_beat = current_batch*(n_frames)
+        end_beat = start_beat + n_frames + overlap
         
         if get_data:
             yield_res['normal_data'], yield_res['sequence_length'] = format_data(channels, start_beat, end_beat)
@@ -368,18 +370,28 @@ def gathering_data_from_chunks(data, list_of_res, overlap=700, n_chunks=32):
 #######################################################################################
 #testing
 """
-gen_params = dict(n_beats = 10,
+import sys
+sys.path.append('../../Preprocessing/')
+import Preprocessing_v2 as pre
+
+data = np.load('../../data/little/AAO1CMED2K865.npy').item()
+pre.view_beat_data(data, 0 , 10, plot_events=True)
+
+gen_params = dict(n_frames = 10,
                 overlap = 5,
                 get_data = True,
                 get_delta_coded_data = True,
                 get_events = True) 
 
 data_loader = LoadDataFileShuffling(batch_size=1,
-                                    path_to_data='/media/nazar/DATA/Sapiens/ICG/data/npy/',
+                                    path_to_data='/media/nazar/DATA/Sapiens/ICG/data/little/',
                                     gen=step_generator,
                                     gen_params=gen_params,
                                     verbose=True)
 b = data_loader.get_batch()
+
+plt.plot(b['normal_data'][7,:,0])
+plt.show()
 """
 
 """
@@ -417,17 +429,18 @@ data = np.load('/media/nazar/DATA/Sapiens/ICG/data/test/AAO3CXJKEG.npy').item()
 import sys
 sys.path.append('../../Preprocessing/')
 import Preprocessing_v2 as pre
-#pre.view_beat_data(data, 0 , 10)
+pre.view_beat_data(data, 0 , 4)
 gen = step_generator(data,
-               n_beats = 10,
-               overlap = 5,
+               n_frames = 5,
+               overlap = 2,
                get_data = True,
                get_delta_coded_data = True,
                get_events = True)
 
 b = next(gen)
+"""
 
-
+"""
 start_time = time.time()
 while True:
     try:

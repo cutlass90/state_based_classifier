@@ -4,16 +4,16 @@ CHANNELS = ['ES', 'AS', 'AI'] # input channels ['ES', 'AS', 'AI']
 CONVERT_TO_CHANNELS = None # None if no convertation need ['II', 'V1']
 
 # classifier parameters
-BATCH_SIZE = 16
-N_BEATS = 5
-OVERLAP = 2
-N_HIDDEN_RNN = 32 #number of neurons in RNN
-N_HIDDEN_FC = 128
+BATCH_SIZE = 1
+N_BEATS = 10
+OVERLAP = 5
+N_HIDDEN_RNN = 16 #number of neurons in RNN
+N_HIDDEN_FC = 64
 DROPOUT = 0.9
 
 # Data Loader paremeters
 USE_DELTA_CODING = True
-USE_CHUNKED_DATA = True
+USE_CHUNKED_DATA = False
 VERBOSE = True
 
 REQUIRED_DISEASES = [
