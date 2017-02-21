@@ -8,8 +8,8 @@ BATCH_SIZE = 1
 N_BEATS = 10
 OVERLAP = 5
 N_HIDDEN_RNN = 16 #number of neurons in RNN
-N_HIDDEN_FC = 64
-DROPOUT = 0.9
+N_HIDDEN_FC = 32
+DROPOUT = 1
 
 # Data Loader paremeters
 USE_DELTA_CODING = True

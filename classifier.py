@@ -26,7 +26,7 @@ class Classifier:
         self.nHiddenRNN = nHiddenRNN
         self.nHiddenFC = nHiddenFC
         self.dropout = dropout
-        self.l2Koeff = 0.01
+        self.l2Koeff = 0.9e-10
         self.create_graph()
         if do_train: self.create_optimizer_graph(self.cost)
         self.train_writer = tf.train.SummaryWriter(logdir = 'summary/')
@@ -57,8 +57,8 @@ class Classifier:
         with tf.variable_scope('RNN_graph'):
             # inputs b*(n_b+o) x h x c (h is variable value)
             # sequence_length b*(n_b+o)
-            fw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN)
-            bw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN)
+            fw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
+            bw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
             outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw=fw_cell,
                 cell_bw=bw_cell,
                 inputs=inputs,
@@ -121,9 +121,10 @@ class Classifier:
         #logits and targets # b*n_b x len(REQUIRED_DISEASES)
 
         self.sigmoid_cross_entropy = tf.reduce_mean(
+            #tf.nn.softmax_cross_entropy_with_logits(
             tf.nn.weighted_cross_entropy_with_logits(
-            logits=logits,
-            targets=targets,
+            logits,
+            targets,
             pos_weight = 2,
             name='sigmoid_cross_entropy')) #b*(n_b+o) x len(REQUIRED_DISEASES)
 
@@ -137,13 +138,8 @@ class Classifier:
 
     def create_optimizer_graph(self, cost):
         with tf.variable_scope('optimizer_graph'):
-            optimizer = tf.train.AdamOptimizer(0.0001)
-
-            #grad clipping
-            tvars = tf.trainable_variables()
-            grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 0.3)
-            self.train = optimizer.apply_gradients(zip(grads, tvars))
-
+            optimizer = tf.train.AdamOptimizer(0.01)
+            self.train = optimizer.minimize(cost)
     # --------------------------------------------------------------------------
     def create_graph(self):
         ####Define graph
@@ -160,19 +156,15 @@ class Classifier:
             shape=[self.batch_size*(self.n_beats+self.overlap)])
         self.keep_prob = tf.placeholder(tf.float32)
 
+        
         states = self.create_RNN_graph(self.inputs, self.sequence_length)
             # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
+        seq_len = tf.cast(self.sequence_length, tf.float32)/100
         states_con = tf.concat(1, list(states) +\
-            [tf.expand_dims(tf.cast(self.sequence_length/100, tf.float32), 1)]) #b*(n_b+o) x 2*hRNN+1
-
-        states_rs = tf.reshape(states_con,
-            [self.batch_size, self.n_beats+self.overlap, 2*self.nHiddenRNN+1])
-            #b x (n_b+o) x 2*hRNN+1
-
-        RNNs = self.create_state_RNN_graph(states_rs) #b*n_b x 2*hRNN
-
-        FC = self.create_FC_graph(RNNs) #b*n_b x hFC
+            [seq_len[:,None]]) #b*(n_b+o) x 2*hRNN+1
+        
+        FC = self.create_FC_graph(states_con) #b*(n_b+o) x hFC
 
         logits = tf.contrib.layers.fully_connected(
             inputs=FC,
@@ -180,12 +172,14 @@ class Classifier:
             activation_fn=None,
             weights_initializer=tf.contrib.layers.xavier_initializer(),
             biases_initializer=tf.zeros_initializer,
-            trainable=True) #b*n_b x len(REQUIRED_DISEASES)
+            trainable=True) #b*(n_b+o) x len(REQUIRED_DISEASES)
 
-        self.predicted_events = tf.sigmoid(logits) #b*n_b x len(REQUIRED_DISEASES)
+        logits = logits[:self.n_beats, :]
+
+        self.predicted_events = tf.nn.softmax(logits) #b*(n_b+o) x len(REQUIRED_DISEASES)
 
         self.cost = self.create_cost_graph(logits,
-            self.target_events[:self.batch_size*self.n_beats, :]) #scalar
+            self.target_events[:self.n_beats]) #scalar
         print('Done!')
         
     ############################################################################  
