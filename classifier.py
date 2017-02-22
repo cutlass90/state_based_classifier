@@ -29,7 +29,8 @@ class Classifier:
         self.l2Koeff = 0.9e-10
         self.create_graph()
         if do_train: self.create_optimizer_graph(self.cost)
-        self.train_writer = tf.train.SummaryWriter(logdir = 'summary/')
+        sub_d = len(os.listdir('summary'))
+        self.train_writer = tf.train.SummaryWriter(logdir = 'summary/'+str(sub_d))
         self.merged = tf.merge_all_summaries()
         
         init_op = tf.initialize_all_variables()
