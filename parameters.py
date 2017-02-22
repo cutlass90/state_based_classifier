@@ -5,9 +5,9 @@ CONVERT_TO_CHANNELS = None # None if no convertation need ['II', 'V1']
 
 # classifier parameters
 BATCH_SIZE = 1
-N_BEATS = 10
-OVERLAP = 5
-N_HIDDEN_RNN = 16 #number of neurons in RNN
+N_BEATS = 5
+OVERLAP = 1
+N_HIDDEN_RNN = 128 #number of neurons in RNN
 N_HIDDEN_FC = 32
 DROPOUT = 1
 

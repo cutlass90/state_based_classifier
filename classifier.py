@@ -26,7 +26,7 @@ class Classifier:
         self.nHiddenRNN = nHiddenRNN
         self.nHiddenFC = nHiddenFC
         self.dropout = dropout
-        self.l2Koeff = 0.9e-10
+        self.l2Koeff = 0.01
         self.create_graph()
         if do_train: self.create_optimizer_graph(self.cost)
         sub_d = len(os.listdir('summary'))
@@ -126,7 +126,7 @@ class Classifier:
             tf.nn.weighted_cross_entropy_with_logits(
             logits,
             targets,
-            pos_weight = 2,
+            pos_weight = 5,
             name='sigmoid_cross_entropy')) #b*(n_b+o) x len(REQUIRED_DISEASES)
 
         self.l2Loss = self.l2Koeff*sum([tf.reduce_mean(tf.square(var))
@@ -139,8 +139,47 @@ class Classifier:
 
     def create_optimizer_graph(self, cost):
         with tf.variable_scope('optimizer_graph'):
-            optimizer = tf.train.AdamOptimizer(0.01)
+            optimizer = tf.train.AdamOptimizer(0.005)
             self.train = optimizer.minimize(cost)
+
+    # --------------------------------------------------------------------------
+    def create_convo_graph(self, inputs):
+        with tf.variable_scope('convo_graph'):
+            convo1 = self.conv_1d(inputs,
+                kernelShape=[2, 3, 8],
+                strides=2,
+                activation=tf.nn.elu,
+                dropout=self.dropout)
+            convo2 = self.conv_1d(convo1,
+                kernelShape=[2, 8, 16],
+                strides=2,
+                activation=tf.nn.elu,
+                dropout=self.dropout)
+            convo3 = self.conv_1d(convo2,
+                kernelShape=[2, 16, 32],
+                strides=2,
+                activation=tf.nn.elu,
+                dropout=self.dropout)
+        return convo3
+
+    # --------------------------------------------------------------------------
+    def conv_1d(self, inputs, kernelShape, strides=1, activation = None, dropout = None):
+        with tf.variable_scope(None, 'conv_1d') as sc:
+            # inputs to convo need [batch, in_width, in_channels]
+            # kernels shape must be [filter_width, in_channels, out_channels]
+            kernel = tf.get_variable('kernel', shape=kernelShape,
+                initializer=tf.contrib.layers.xavier_initializer())
+            bias = tf.get_variable('bias', shape=[kernelShape[2]],
+                initializer=tf.constant_initializer(0.0))
+            convo = tf.nn.bias_add(tf.nn.conv1d(inputs, filters=kernel,
+                stride=strides, padding="SAME"), bias)
+            if activation is not None:
+                convo = activation(convo, name='activation')
+            if dropout is not None:
+                convo = tf.nn.dropout(convo, keep_prob=dropout, name="dropout")
+            return convo
+
+        
     # --------------------------------------------------------------------------
     def create_graph(self):
         ####Define graph
@@ -157,13 +196,19 @@ class Classifier:
             shape=[self.batch_size*(self.n_beats+self.overlap)])
         self.keep_prob = tf.placeholder(tf.float32)
 
-        
-        states = self.create_RNN_graph(self.inputs, self.sequence_length)
+        convo = self.create_convo_graph(self.inputs)
+
+        seq_l = tf.cast((self.sequence_length/8), tf.int32)
+
+        states = self.create_RNN_graph(convo, seq_l)
             # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
         seq_len = tf.cast(self.sequence_length, tf.float32)/100
+        """
         states_con = tf.concat(1, list(states) +\
             [seq_len[:,None]]) #b*(n_b+o) x 2*hRNN+1
+        """
+        states_con = tf.concat(1, states) #b*(n_b+o) x 2*hRNN+1
         
         FC = self.create_FC_graph(states_con) #b*(n_b+o) x hFC
 

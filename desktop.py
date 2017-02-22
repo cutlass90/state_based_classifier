@@ -24,7 +24,7 @@ path_eval_cost_data     = '../../../ECG_DATA/ECG_DATA_1000samples_2/test/'
 path_to_predict_data    = path_to_train_data
 path_to_predictions     = 'predictions/'
 os.makedirs(path_to_predictions, exist_ok = True)
-n_iter_train            = 800
+n_iter_train            = 500
 n_iter_eval             = 10000
 save_model_every_n_iter = 15000
 path_to_model = 'models/cl'
@@ -84,10 +84,10 @@ for path in paths:
     true_events = data['events'][:, np.in1d(data['disease_name'], REQUIRED_DISEASES)]
     pred_events = np.load(path_to_predictions + os.path.basename(path)[:-4]+"_events.npy")
     utils.save_log(path = path_to_predictions, file_name = os.path.basename(path)[:-4] + '.csv', diseases = data['disease_name'][np.in1d(data['disease_name'], REQUIRED_DISEASES)], lbs = true_events, pred = pred_events, cost = np.arange(len(REQUIRED_DISEASES)), threshold = 0.5)
-
+"""
 # create summaty
 data = np.load(paths[0]).item()
 diseases=data['disease_name'][np.in1d(data['disease_name'], REQUIRED_DISEASES)]
 utils.save_summary(path=path_to_predictions, diseases=diseases)
-
+"""
 
