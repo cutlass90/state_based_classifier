@@ -375,12 +375,12 @@ sys.path.append('../../Preprocessing/')
 import Preprocessing_v2 as pre
 
 data = np.load('../../data/little/AAO1CMED2K865.npy').item()
-pre.view_beat_data(data, 50 , 66, plot_events=True)
-"""
+pre.view_beat_data(data, 0 , 13, plot_events=True)
 
-"""
-gen_params = dict(n_frames = 10,
-                overlap = 5,
+
+
+gen_params = dict(n_frames = 5,
+                overlap = 3,
                 get_data = True,
                 get_delta_coded_data = True,
                 get_events = True) 
@@ -390,11 +390,21 @@ data_loader = LoadDataFileShuffling(batch_size=1,
                                     gen=step_generator,
                                     gen_params=gen_params,
                                     verbose=True)
-b = data_loader.get_batch()
+REQUIRED_DISEASES = np.asarray(REQUIRED_DISEASES, dtype=object)
+REQUIRED_DISEASES = data['disease_name'][np.in1d(data['disease_name'], REQUIRED_DISEASES)]
 
-plt.plot(b['normal_data'][7,:,0])
-plt.show()
+a = 0
+while True:
+    b = data_loader.get_batch()
+    print('\n new batch')
+    for i in range(b['events'].shape[0]):
+        ind = b['events'][i,...] == 1
+        print(REQUIRED_DISEASES[ind])
+        plt.plot(b['delta_coded_data'][i,:,0])
+        plt.show()
+    input(a)
 """
+
 
 """
 start_time = time.time()

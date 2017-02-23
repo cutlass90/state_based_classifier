@@ -83,8 +83,10 @@ class Classifier:
                 initial_state = states, dtype=tf.float32, scope = 'fw_RNN') #b x n_b x hRNN
             with tf.control_dependencies([tf.assign(states, new_state)]):
                 fw_RNN_outputs = tf.identity(fw_RNN_outputs)
+                
             bw_RNN_outputs, _ = tf.nn.dynamic_rnn(bw_cell, bw_inputs,
                 dtype=tf.float32, scope = 'bw_RNN') #b x (n_b+o) x hRNN
+
             bw_RNN_outputs = bw_RNN_outputs[:, self.overlap:, :] #b x n_b x hRNN
             bw_RNN_outputs = tf.reverse(bw_RNN_outputs, [False, True, False])
 
@@ -196,19 +198,29 @@ class Classifier:
             shape=[self.batch_size*(self.n_beats+self.overlap)])
         self.keep_prob = tf.placeholder(tf.float32)
 
-        convo = self.create_convo_graph(self.inputs)
+        convo = self.create_convo_graph(self.inputs) #b*(n_b+o) x h1 x features
+        print(convo)
 
         seq_l = tf.cast((self.sequence_length/8), tf.int32)
 
         states = self.create_RNN_graph(convo, seq_l)
+        print(states)
             # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
         seq_len = tf.cast(self.sequence_length, tf.float32)/100
         states_con = tf.concat(1, list(states) +\
             [seq_len[:,None]]) #b*(n_b+o) x 2*hRNN+1
-        #states_con = tf.concat(1, states) #b*(n_b+o) x 2*hRNN+1
+        print(states_con)
+
+        states_rs = tf.reshape(states_con, [self.batch_size,
+            self.n_beats+self.overlap, 2*self.nHiddenRNN+1]) #b x (n_b+o) x 2*hRNN+1
+        print(states_rs)
         
-        FC = self.create_FC_graph(states_con) #b*(n_b+o) x hFC
+        RNNs = self.create_state_RNN_graph(states_rs) #b*n_b x 2*hRNN
+        print(RNNs)
+        
+        FC = self.create_FC_graph(RNNs) #b*n_b x hFC
+        print(FC)
 
         logits = tf.contrib.layers.fully_connected(
             inputs=FC,
@@ -216,15 +228,18 @@ class Classifier:
             activation_fn=None,
             weights_initializer=tf.contrib.layers.xavier_initializer(),
             biases_initializer=tf.zeros_initializer,
-            trainable=True) #b*(n_b+o) x len(REQUIRED_DISEASES)
+            trainable=True) #b*n_b x len(REQUIRED_DISEASES)
 
-        self.predicted_events = tf.sigmoid(logits) #b*(n_b+o) x len(REQUIRED_DISEASES)
+        self.predicted_events = tf.sigmoid(logits) #b*n_b x len(REQUIRED_DISEASES)
 
         targets = tf.reshape(self.target_events, [self.batch_size,
             (self.n_beats+self.overlap), len(REQUIRED_DISEASES)])
+        print(targets)
         targets = targets[:, :self.n_beats, :]
+        print(targets)
         targets = tf.reshape(targets, [self.batch_size*self.n_beats,
             len(REQUIRED_DISEASES)])
+        print(targets)
         self.cost = self.create_cost_graph(logits, targets)
 
         print('Done!')

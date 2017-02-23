@@ -17,7 +17,7 @@ with open('parameters.py', 'r') as param:
 
 
 
-
+#path_to_train_data = '../../data/little/'
 path_to_train_data      = '../../data/train/chunked/'
 #path_to_train_data      = '../../../ECG_DATA/all/chunked_data/'
 path_eval_cost_data     = '../../../ECG_DATA/ECG_DATA_1000samples_2/test/'
@@ -83,7 +83,14 @@ for path in paths:
     data = np.load(path).item()
     true_events = data['events'][:, np.in1d(data['disease_name'], REQUIRED_DISEASES)]
     pred_events = np.load(path_to_predictions + os.path.basename(path)[:-4]+"_events.npy")
-    utils.save_log(path = path_to_predictions, file_name = os.path.basename(path)[:-4] + '.csv', diseases = data['disease_name'][np.in1d(data['disease_name'], REQUIRED_DISEASES)], lbs = true_events, pred = pred_events, cost = np.arange(len(REQUIRED_DISEASES)), threshold = 0.5)
+    utils.save_log(
+        path = path_to_predictions,
+        file_name = os.path.basename(path)[:-4] + '.csv',
+        diseases = data['disease_name'][np.in1d(data['disease_name'], REQUIRED_DISEASES)],
+        lbs = true_events,
+        pred = pred_events,
+        cost = np.arange(len(REQUIRED_DISEASES)),
+        threshold = 0.5)
 """
 # create summaty
 data = np.load(paths[0]).item()
