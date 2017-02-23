@@ -18,13 +18,13 @@ with open('parameters.py', 'r') as param:
 
 
 
-path_to_train_data      = '../../data/little/'
+path_to_train_data      = '../../data/train/chunked/'
 #path_to_train_data      = '../../../ECG_DATA/all/chunked_data/'
 path_eval_cost_data     = '../../../ECG_DATA/ECG_DATA_1000samples_2/test/'
-path_to_predict_data    = path_to_train_data
+path_to_predict_data    = '../../data/little/'
 path_to_predictions     = 'predictions/'
 os.makedirs(path_to_predictions, exist_ok = True)
-n_iter_train            = 500
+n_iter_train            = 1000
 n_iter_eval             = 10000
 save_model_every_n_iter = 15000
 path_to_model = 'models/cl'

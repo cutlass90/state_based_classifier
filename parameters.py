@@ -4,10 +4,10 @@ CHANNELS = ['ES', 'AS', 'AI'] # input channels ['ES', 'AS', 'AI']
 CONVERT_TO_CHANNELS = None # None if no convertation need ['II', 'V1']
 
 # classifier parameters
-BATCH_SIZE = 2
+BATCH_SIZE = 10
 N_BEATS = 2
 OVERLAP = 0
-N_HIDDEN_RNN = 128 #number of neurons in RNN
+N_HIDDEN_RNN = 32 #number of neurons in RNN
 N_HIDDEN_FC = 32
 DROPOUT = 1
 

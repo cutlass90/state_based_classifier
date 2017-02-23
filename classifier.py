@@ -26,7 +26,7 @@ class Classifier:
         self.nHiddenRNN = nHiddenRNN
         self.nHiddenFC = nHiddenFC
         self.dropout = dropout
-        self.l2Koeff = 0.01
+        self.l2Koeff = 0.01e-5
         self.create_graph()
         if do_train: self.create_optimizer_graph(self.cost)
         sub_d = len(os.listdir('summary'))
@@ -226,7 +226,7 @@ class Classifier:
         targets = tf.reshape(targets, [self.batch_size*self.n_beats,
             len(REQUIRED_DISEASES)])
         self.cost = self.create_cost_graph(logits, targets)
-        
+
         print('Done!')
         
     ############################################################################  
