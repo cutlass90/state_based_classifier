@@ -204,11 +204,9 @@ class Classifier:
             # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
         seq_len = tf.cast(self.sequence_length, tf.float32)/100
-        """
         states_con = tf.concat(1, list(states) +\
             [seq_len[:,None]]) #b*(n_b+o) x 2*hRNN+1
-        """
-        states_con = tf.concat(1, states) #b*(n_b+o) x 2*hRNN+1
+        #states_con = tf.concat(1, states) #b*(n_b+o) x 2*hRNN+1
         
         FC = self.create_FC_graph(states_con) #b*(n_b+o) x hFC
 
@@ -220,12 +218,15 @@ class Classifier:
             biases_initializer=tf.zeros_initializer,
             trainable=True) #b*(n_b+o) x len(REQUIRED_DISEASES)
 
-        logits = logits[:self.n_beats, :]
+        self.predicted_events = tf.sigmoid(logits) #b*(n_b+o) x len(REQUIRED_DISEASES)
 
-        self.predicted_events = tf.nn.softmax(logits) #b*(n_b+o) x len(REQUIRED_DISEASES)
-
-        self.cost = self.create_cost_graph(logits,
-            self.target_events[:self.n_beats]) #scalar
+        targets = tf.reshape(self.target_events, [self.batch_size,
+            (self.n_beats+self.overlap), len(REQUIRED_DISEASES)])
+        targets = targets[:, :self.n_beats, :]
+        targets = tf.reshape(targets, [self.batch_size*self.n_beats,
+            len(REQUIRED_DISEASES)])
+        self.cost = self.create_cost_graph(logits, targets)
+        
         print('Done!')
         
     ############################################################################  

@@ -375,8 +375,10 @@ sys.path.append('../../Preprocessing/')
 import Preprocessing_v2 as pre
 
 data = np.load('../../data/little/AAO1CMED2K865.npy').item()
-pre.view_beat_data(data, 20 , 40, plot_events=True)
+pre.view_beat_data(data, 50 , 66, plot_events=True)
+"""
 
+"""
 gen_params = dict(n_frames = 10,
                 overlap = 5,
                 get_data = True,
