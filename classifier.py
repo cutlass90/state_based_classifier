@@ -26,14 +26,14 @@ class Classifier:
         self.nHiddenRNN = nHiddenRNN
         self.nHiddenFC = nHiddenFC
         self.dropout = dropout
-        self.l2Koeff = 0.01e-5
+        self.l2Koeff = 0.03
         self.create_graph()
         if do_train: self.create_optimizer_graph(self.cost)
         sub_d = len(os.listdir('summary'))
-        self.train_writer = tf.train.SummaryWriter(logdir = 'summary/'+str(sub_d))
-        self.merged = tf.merge_all_summaries()
+        self.train_writer = tf.summary.FileWriter(logdir = 'summary/'+str(sub_d))
+        self.merged = tf.summary.merge_all()
         
-        init_op = tf.initialize_all_variables()
+        init_op = tf.global_variables_initializer()
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
@@ -123,25 +123,25 @@ class Classifier:
     def create_cost_graph(self, logits, targets):
         #logits and targets # b*n_b x len(REQUIRED_DISEASES)
 
-        self.sigmoid_cross_entropy = tf.reduce_mean(
-            #tf.nn.softmax_cross_entropy_with_logits(
-            tf.nn.weighted_cross_entropy_with_logits(
-            logits,
-            targets,
-            pos_weight = 5,
-            name='sigmoid_cross_entropy')) #b*(n_b+o) x len(REQUIRED_DISEASES)
+        cross_entropy = tf.nn.weighted_cross_entropy_with_logits(logits, targets,
+            pos_weight = 5, name='sigmoid_cross_entropy') #b*(n_b+o) x len(REQUIRED_DISEASES)
+        c_e_sum = tf.reduce_mean(cross_entropy, axis=0) # len(REQUIRED_DISEASES)
+        for i,n in enumerate(disease_names):
+            tf.summary.scalar(n, c_e_sum[i])
+
+        self.sigmoid_cross_entropy = tf.reduce_mean(c_e_sum)
 
         self.l2Loss = self.l2Koeff*sum([tf.reduce_mean(tf.square(var))
             for var in tf.trainable_variables()])
 
-        tf.scalar_summary('Crossentropy', self.sigmoid_cross_entropy)
-        tf.scalar_summary('L2 loss', self.l2Loss)
+        tf.summary.scalar('Crossentropy', self.sigmoid_cross_entropy)
+        tf.summary.scalar('L2 loss', self.l2Loss)
         
         return self.sigmoid_cross_entropy + self.l2Loss
 
     def create_optimizer_graph(self, cost):
         with tf.variable_scope('optimizer_graph'):
-            optimizer = tf.train.AdamOptimizer(0.005)
+            optimizer = tf.train.AdamOptimizer(0.001)
             self.train = optimizer.minimize(cost)
 
     # --------------------------------------------------------------------------

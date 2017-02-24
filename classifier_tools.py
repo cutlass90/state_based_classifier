@@ -57,6 +57,10 @@ class LoadDataFileShuffling:
         if USE_CHUNKED_DATA:
             if len(self.current_list_of_data) == 0:
                 self.current_list_of_data = np.load(self.paths_to_data[0])
+                shuffle(self.current_list_of_data)
+                n_ch = np.random.randint(10,20)
+                if len(self.current_list_of_data) >= n_ch:
+                    self.current_list_of_data = self.current_list_of_data[:n_ch]
                 if self.verbose:
                     pass
                     #print("\nFile " + self.paths_to_data[0] + " was loaded")
