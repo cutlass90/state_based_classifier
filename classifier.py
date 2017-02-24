@@ -141,7 +141,7 @@ class Classifier:
 
     def create_optimizer_graph(self, cost):
         with tf.variable_scope('optimizer_graph'):
-            optimizer = tf.train.AdamOptimizer(0.001)
+            optimizer = tf.train.AdamOptimizer(0.005)
             self.train = optimizer.minimize(cost)
 
     # --------------------------------------------------------------------------

@@ -5,8 +5,8 @@ CONVERT_TO_CHANNELS = None # None if no convertation need ['II', 'V1']
 
 # classifier parameters
 BATCH_SIZE = 32
-N_BEATS = 5
-OVERLAP = 2
+N_BEATS = 3
+OVERLAP = 1
 N_HIDDEN_RNN = 32 #number of neurons in RNN
 N_HIDDEN_FC = 32
 DROPOUT = 1
@@ -17,7 +17,7 @@ USE_CHUNKED_DATA = False
 VERBOSE = True
 
 REQUIRED_DISEASES = [
-    #'Atrial_PAC',
+    'Atrial_PAC',
     'Atrial_Bigeminy',
     'Atrial_Trigeminy',
     'Atrial_Pair',
