@@ -26,7 +26,7 @@ class Classifier:
         self.nHiddenRNN = nHiddenRNN
         self.nHiddenFC = nHiddenFC
         self.dropout = dropout
-        self.l2Koeff = 0.03
+        self.l2Koeff = L2
         self.create_graph()
         if do_train: self.create_optimizer_graph(self.cost)
         sub_d = len(os.listdir('summary'))
@@ -141,7 +141,7 @@ class Classifier:
 
     def create_optimizer_graph(self, cost):
         with tf.variable_scope('optimizer_graph'):
-            optimizer = tf.train.AdamOptimizer(0.001)
+            optimizer = tf.train.AdamOptimizer(LEARN_RATE)
             self.train = optimizer.minimize(cost)
 
     # --------------------------------------------------------------------------

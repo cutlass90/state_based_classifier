@@ -16,7 +16,7 @@ with open('parameters.py', 'r') as param:
 
 
 
-"""
+
 #path_to_train_data = '../../data/little/'
 #path_to_train_data      = '../../data/train/chunked/'
 path_to_train_data      = '../../../ECG_DATA/all/chunked_data/'
@@ -59,11 +59,14 @@ with Classifier(batch_size = BATCH_SIZE,
                          n_iter = n_iter_train,
                          save_model_every_n_iter = save_model_every_n_iter,
                          path_to_model = path_to_model) 
-"""
 
 
+
+path_to_filenames = '/media/host1/Data/Work/ECG_DATA/all/valid_files/100.txt'
+with open(path_to_filenames, 'r') as file:
+    paths = file.read().splitlines()[:100]
+#paths = utils.find_files(path_to_predict_data, '*.npy')
 # Predicting   
-paths = utils.find_files(path_to_predict_data, '*.npy')
 with Classifier(batch_size = 1,
                 n_beats = N_BEATS,
                 overlap = OVERLAP,

@@ -10,10 +10,12 @@ OVERLAP = 2
 N_HIDDEN_RNN = 64 #number of neurons in RNN
 N_HIDDEN_FC = 64
 DROPOUT = 1
+L2 = 0.03
+LEARN_RATE = 0.001
 
 # Data Loader paremeters
 USE_DELTA_CODING = True
-USE_CHUNKED_DATA = True
+USE_CHUNKED_DATA = False
 VERBOSE = True
 
 REQUIRED_DISEASES = [
