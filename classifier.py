@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 import classifier_tools as utils
-from parameters import *
+from parameters import parameters as PARAM
 import misc
 
 print('model 28$$$$')
@@ -17,7 +17,7 @@ class Classifier:
 
     def __init__(self, batch_size, n_beats = 10, overlap = 5,
         n_channel = 3, nHiddenRNN = 64,
-        nHiddenFC = 64, dropout = 1, do_train = True):
+        nHiddenFC = 64, dropout = 1, L2 = 0.03, do_train = True):
 
         self.batch_size = batch_size
         self.n_beats = n_beats
@@ -121,12 +121,12 @@ class Classifier:
 
     # --------------------------------------------------------------------------
     def create_cost_graph(self, logits, targets):
-        #logits and targets # b*n_b x len(REQUIRED_DISEASES)
+        #logits and targets # b*n_b x len(PARAM['required_diseases'])
 
         cross_entropy = tf.nn.weighted_cross_entropy_with_logits(logits, targets,
-            pos_weight = 5, name='sigmoid_cross_entropy') #b*(n_b+o) x len(REQUIRED_DISEASES)
-        c_e_sum = tf.reduce_mean(cross_entropy, axis=0) # len(REQUIRED_DISEASES)
-        for i,n in enumerate(disease_names):
+            pos_weight = 5, name='sigmoid_cross_entropy') #b*(n_b+o) x len(PARAM['required_diseases'])
+        c_e_sum = tf.reduce_mean(cross_entropy, axis=0) # len(PARAM['required_diseases'])
+        for i,n in enumerate(PARAM['disease_names']):
             tf.summary.scalar(n, c_e_sum[i])
 
         self.sigmoid_cross_entropy = tf.reduce_mean(c_e_sum)
@@ -141,24 +141,24 @@ class Classifier:
 
     def create_optimizer_graph(self, cost):
         with tf.variable_scope('optimizer_graph'):
-            optimizer = tf.train.AdamOptimizer(LEARN_RATE)
+            optimizer = tf.train.AdamOptimizer(PARAM['learn_rate'])
             self.train = optimizer.minimize(cost)
 
     # --------------------------------------------------------------------------
     def create_convo_graph(self, inputs):
         with tf.variable_scope('convo_graph'):
             convo1 = self.conv_1d(inputs,
-                kernelShape=[2, 3, 8],
+                kernelShape=[2, 3, 16],
                 strides=2,
                 activation=tf.nn.elu,
                 dropout=self.dropout)
             convo2 = self.conv_1d(convo1,
-                kernelShape=[2, 8, 16],
+                kernelShape=[2, 16, 32],
                 strides=2,
                 activation=tf.nn.elu,
                 dropout=self.dropout)
             convo3 = self.conv_1d(convo2,
-                kernelShape=[2, 16, 32],
+                kernelShape=[2, 32, 64],
                 strides=2,
                 activation=tf.nn.elu,
                 dropout=self.dropout)
@@ -192,8 +192,8 @@ class Classifier:
             shape=[self.batch_size*(self.n_beats+self.overlap), None, self.n_channel],
             name='inputs') #b*(n_b+o) x h x c (h is variable value)
         self.target_events = tf.placeholder(tf.float32,
-            shape=[self.batch_size*(self.n_beats+self.overlap), len(REQUIRED_DISEASES)],
-            name='target_events') # b*(n_b+o) x len(REQUIRED_DISEASES)
+            shape=[self.batch_size*(self.n_beats+self.overlap), len(PARAM['required_diseases'])],
+            name='target_events') # b*(n_b+o) x len(PARAM['required_diseases'])
         self.sequence_length = tf.placeholder(tf.int32,
             shape=[self.batch_size*(self.n_beats+self.overlap)])
         self.keep_prob = tf.placeholder(tf.float32)
@@ -224,21 +224,21 @@ class Classifier:
 
         logits = tf.contrib.layers.fully_connected(
             inputs=FC,
-            num_outputs=len(REQUIRED_DISEASES),
+            num_outputs=len(PARAM['required_diseases']),
             activation_fn=None,
             weights_initializer=tf.contrib.layers.xavier_initializer(),
             biases_initializer=tf.zeros_initializer,
-            trainable=True) #b*n_b x len(REQUIRED_DISEASES)
+            trainable=True) #b*n_b x len(PARAM['required_diseases'])
 
-        self.predicted_events = tf.sigmoid(logits) #b*n_b x len(REQUIRED_DISEASES)
+        self.predicted_events = tf.sigmoid(logits) #b*n_b x len(PARAM['required_diseases'])
 
         targets = tf.reshape(self.target_events, [self.batch_size,
-            (self.n_beats+self.overlap), len(REQUIRED_DISEASES)])
+            (self.n_beats+self.overlap), len(PARAM['required_diseases'])])
         print(targets)
         targets = targets[:, :self.n_beats, :]
         print(targets)
         targets = tf.reshape(targets, [self.batch_size*self.n_beats,
-            len(REQUIRED_DISEASES)])
+            len(PARAM['required_diseases'])])
         print(targets)
         self.cost = self.create_cost_graph(logits, targets)
 
@@ -298,13 +298,13 @@ class Classifier:
         data = np.load(path_to_file).item()
 
         gen = utils.step_generator(data,
-                   n_frames = N_BEATS,
-                   overlap = OVERLAP,
-                   get_data = False,
-                   get_delta_coded_data = True,
+                   n_frames = PARAM['n_frames'],
+                   overlap = PARAM['overlap'],
+                   get_data = not(PARAM['use_delta_coding']),
+                   get_delta_coded_data = PARAM['use_delta_coding'],
                    get_events = False)
         
-        result = np.zeros([len(data['beats']), len(REQUIRED_DISEASES)])
+        result = np.zeros([len(data['beats']), len(PARAM['required_diseases'])])
 
         n_batches = (data['beats'].shape[0] - self.overlap) // self.n_beats + 10
         forward_pass_time = 0
@@ -318,7 +318,7 @@ class Classifier:
                         self.keep_prob : 1}
 
             start_time = time.time()
-            res = self.sess.run(self.predicted_events, feed_dict = feedDict) #n_b x len(REQUIRED_DISEASES)
+            res = self.sess.run(self.predicted_events, feed_dict = feedDict) #n_b x len(PARAM['required_diseases'])
             forward_pass_time = forward_pass_time + (time.time() - start_time)
             s = current_iter*self.n_beats
             e = s + self.n_beats

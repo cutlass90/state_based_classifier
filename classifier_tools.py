@@ -15,7 +15,7 @@ import tqdm as tqdm
 from sklearn.metrics import confusion_matrix
 
 import misc
-from parameters import *
+from parameters import parameters as PARAM
 
 print('tools 26$$$$')
 
@@ -54,7 +54,7 @@ class LoadDataFileShuffling:
                 file_type = '*.npy')
             shuffle(self.paths_to_data)
 
-        if USE_CHUNKED_DATA:
+        if PARAM['use_chunked_data']:
             if len(self.current_list_of_data) == 0:
                 self.current_list_of_data = np.load(self.paths_to_data[0])
                 shuffle(self.current_list_of_data)
@@ -106,7 +106,7 @@ class LoadDataFileShuffling:
     ############################################################################
     def batch_preprocessing(self, batch):
         # batch is a list of entities that were returned from generator.
-        # return events shape is [b*(n_frames+overlap), len(REQUIRED_DISEASES)]
+        # return events shape is [b*(n_frames+overlap), len(PARAM['required_diseases'])]
         # return normal_data shape is [b*(n_frames+overlap), x, n_channel]
         # return sequence_length shape is [b*(n_frames+overlap)]
         p_batch = {}
@@ -152,11 +152,11 @@ class LoadDataFileShuffling:
         
         
         if self.gen_params['get_events']:
-            mask = np.in1d(batch[0]['disease_name'], REQUIRED_DISEASES)
+            mask = np.in1d(batch[0]['disease_name'], PARAM['required_diseases'])
             p_batch['events'] = p_batch['events'][:, mask]
-            #a = ~np.in1d(REQUIRED_DISEASES, batch['disease_name'][mask])
-            #print(np.array(REQUIRED_DISEASES)[a])
-            assert len(REQUIRED_DISEASES) == mask.sum(), \
+            #a = ~np.in1d(PARAM['required_diseases'], batch['disease_name'][mask])
+            #print(np.array(PARAM['required_diseases'])[a])
+            assert len(PARAM['required_diseases']) == mask.sum(), \
             'Some of requierd diseases not found. Check REQUIRED_DISEASES.'
         
         return p_batch
@@ -210,25 +210,29 @@ def step_generator(data,
 
     # channels converting
     channels = misc.get_channels(data)
-    if CONVERT_TO_CHANNELS is not None:
-        channels = misc.convert_channels_from_easi(channels, CONVERT_TO_CHANNELS)
+    if PARAM['convert_to_channels'] is not None:
+        channels = misc.convert_channels_from_easi(channels, PARAM['convert_to_channels'])
     
     n_batches = (data['beats'].shape[0] - overlap) // n_frames - 1
 
     if get_delta_coded_data:
-        channels_coded = [np.hstack([[0], np.ediff1d(channel)]).astype(np.float16) for channel in channels]
+        channels_coded = [np.hstack([[0], np.ediff1d(channel)]).astype(np.float16)\
+            for channel in channels]
 
     for current_batch in range(n_batches):
-        yield_res = {'normal_data':None, 'delta_coded_data':None, 'events':None, 'disease_name':data['disease_name'], 'sequence_length':None}
+        yield_res = {'normal_data':None, 'delta_coded_data':None, 'events':None,
+            'disease_name':data['disease_name'], 'sequence_length':None}
 
         start_beat = current_batch*(n_frames)
         end_beat = start_beat + n_frames + overlap
         
         if get_data:
-            yield_res['normal_data'], yield_res['sequence_length'] = format_data(channels, start_beat, end_beat)
+            yield_res['normal_data'], yield_res['sequence_length'] = format_data(
+                channels, start_beat, end_beat)
 
         if get_delta_coded_data:
-            yield_res['delta_coded_data'], yield_res['sequence_length'] = format_data(channels_coded, start_beat, end_beat)
+            yield_res['delta_coded_data'], yield_res['sequence_length'] = format_data(
+                channels_coded, start_beat, end_beat)
 
         if get_events:
             yield_res['events'] = data['events'][start_beat:end_beat,:]
