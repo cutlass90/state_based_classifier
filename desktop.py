@@ -26,7 +26,7 @@ path_to_predictions     = 'predictions/'
 os.makedirs(path_to_predictions, exist_ok = True)
 n_iter_train            = 50000
 n_iter_eval             = 10000
-save_model_every_n_iter = 65000
+save_model_every_n_iter = 9000
 path_to_model = 'models/cl'
 
 
