@@ -423,6 +423,7 @@ def plot_confusion_matrix(true_labels, pred_labels, classes,
         plt.savefig(save_path)
     else:
         plt.show()
+    plt.close()
 #######################################################################################
 #testing
 """
