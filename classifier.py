@@ -58,14 +58,15 @@ class Classifier:
         with tf.variable_scope('RNN_graph'):
             # inputs b*(n_b+o) x h x c (h is variable value)
             # sequence_length b*(n_b+o)
-            fw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
-            bw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
+            cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
+            fw_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*2)
+            bw_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*2)
             outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw=fw_cell,
                 cell_bw=bw_cell,
                 inputs=inputs,
                 sequence_length=sequence_length,
                 dtype=tf.float32)
-        return states # tuple of fw and bw states with shape b*(n_b+o) x hRNN
+        return states[0] + states[1] # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
     # --------------------------------------------------------------------------
     def create_state_RNN_graph(self, inputs):
@@ -201,19 +202,20 @@ class Classifier:
         convo = self.create_convo_graph(self.inputs) #b*(n_b+o) x h1 x features
         print(convo)
 
-        seq_l = tf.cast((self.sequence_length/8), tf.int32)
+        seq_l = tf.cast((self.sequence_length/PARAM['rr']), tf.int32)
 
         states = self.create_RNN_graph(convo, seq_l)
         print(states)
             # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
-        seq_len = tf.cast(self.sequence_length, tf.float32)/100
+        seq_len = self.sequence_length / tf.reduce_mean(self.sequence_length)
+        seq_len = tf.cast(seq_len, tf.float32)
         states_con = tf.concat(1, list(states) +\
             [seq_len[:,None]]) #b*(n_b+o) x 2*hRNN+1
         print(states_con)
 
         states_rs = tf.reshape(states_con, [self.batch_size,
-            self.n_beats+self.overlap, 2*self.nHiddenRNN+1]) #b x (n_b+o) x 2*hRNN+1
+            self.n_beats+self.overlap, 4*self.nHiddenRNN+1]) #b x (n_b+o) x 2*hRNN+1
         print(states_rs)
         
         RNNs = self.create_state_RNN_graph(states_rs) #b*n_b x 2*hRNN
@@ -302,6 +304,7 @@ class Classifier:
                    overlap = PARAM['overlap'],
                    get_data = not(PARAM['use_delta_coding']),
                    get_delta_coded_data = PARAM['use_delta_coding'],
+                   rr = PARAM['rr'],
                    get_events = False)
         
         result = np.zeros([len(data['beats']), len(PARAM['required_diseases'])])

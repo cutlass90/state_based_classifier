@@ -13,7 +13,7 @@ print('\n\n\n\t----==== Import parameters ====----')
 with open('parameters.py', 'r') as param:
     print(param.read())
 
-
+os.makedirs('summary/', exist_ok = True)
 
 
 
@@ -29,12 +29,13 @@ n_iter_eval             = 10000
 save_model_every_n_iter = 9000
 path_to_model = 'models/cl'
 
-
+"""
 gen_params = dict(n_frames = PARAM['n_frames'],
                 overlap = PARAM['overlap'],
                 get_data = not(PARAM['use_delta_coding']),
                 get_delta_coded_data = PARAM['use_delta_coding'],
-                get_events = True)
+                get_events = True,
+                rr = PARAM['rr'])
 
 # Initialize data loader for training
 data_loader = utils.LoadDataFileShuffling(batch_size=PARAM['batch_size'],
@@ -58,7 +59,7 @@ with Classifier(batch_size = PARAM['batch_size'],
                          n_iter = n_iter_train,
                          save_model_every_n_iter = save_model_every_n_iter,
                          path_to_model = path_to_model) 
-
+"""
 
 # Predicting
 PARAM['use_chunked_data'] = False

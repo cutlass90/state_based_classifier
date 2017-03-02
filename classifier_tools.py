@@ -185,7 +185,9 @@ def step_generator(data,
                    overlap = 5,
                    get_data = False,
                    get_delta_coded_data = False,
-                   get_events = False):
+                   get_events = False,
+                   rr = 1):
+    """ rr is reduction ratio """
     
     #---------------------------------------------------------------------------
     def format_data(channels, start_beat, end_beat):
@@ -193,9 +195,14 @@ def step_generator(data,
         sequence_length = np.empty([0], np.int8)
         channels_part_list = []
         for b in range(start_beat, end_beat):
-            channels_part = np.concatenate([np.expand_dims(
-                channel[data['beats'][b]:data['beats'][b+1]], 1)\
+            bea = data['beats'][b:b+2]
+            channels_part = np.concatenate([channel[bea[0]:bea[1]][:,None]\
                 for channel in channels], 1) #h x c (where h is variable value)
+            
+            if channels_part.shape[0]%rr != 0:
+                pad = (channels_part.shape[0]//rr+1)*rr - channels_part.shape[0]
+                channels_part = np.pad(channels_part, ((0,pad),(0,0)), 'constant')
+            
             channels_part_list.append(channels_part) # list len n_frames+overlap
                 #of arrays h x c (where h is variable value)
 
@@ -377,6 +384,19 @@ def gathering_data_from_chunks(data, list_of_res, overlap=700, n_chunks=32):
 
 #######################################################################################
 #testing
+"""
+data = np.load('../../data/little/AAO1CMED2K865.npy').item()
+gen = step_generator(data,
+                   n_frames = 10,
+                   overlap = 5,
+                   get_data = False,
+                   get_delta_coded_data = True,
+                   get_events = True,
+                   rr = 5)
+
+b = next(gen)
+"""
+
 """
 import sys
 sys.path.append('../../Preprocessing/')
