@@ -58,15 +58,14 @@ class Classifier:
         with tf.variable_scope('RNN_graph'):
             # inputs b*(n_b+o) x h x c (h is variable value)
             # sequence_length b*(n_b+o)
-            cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
-            fw_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*2)
-            bw_cell = tf.nn.rnn_cell.MultiRNNCell([cell]*2)
+            fw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
+            bw_cell = tf.nn.rnn_cell.GRUCell(self.nHiddenRNN, activation=tf.nn.elu)
             outputs, states = tf.nn.bidirectional_dynamic_rnn(cell_fw=fw_cell,
                 cell_bw=bw_cell,
                 inputs=inputs,
                 sequence_length=sequence_length,
                 dtype=tf.float32)
-        return states[0] + states[1] # tuple of fw and bw states with shape b*(n_b+o) x hRNN
+        return states # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
     # --------------------------------------------------------------------------
     def create_state_RNN_graph(self, inputs):
@@ -149,18 +148,18 @@ class Classifier:
     def create_convo_graph(self, inputs):
         with tf.variable_scope('convo_graph'):
             convo1 = self.conv_1d(inputs,
-                kernelShape=[2, 3, 16],
-                strides=2,
+                kernelShape=[3, 3, 16],
+                strides=3,
                 activation=tf.nn.elu,
                 dropout=self.dropout)
             convo2 = self.conv_1d(convo1,
-                kernelShape=[2, 16, 32],
-                strides=2,
+                kernelShape=[3, 16, 32],
+                strides=3,
                 activation=tf.nn.elu,
                 dropout=self.dropout)
             convo3 = self.conv_1d(convo2,
-                kernelShape=[2, 32, 64],
-                strides=2,
+                kernelShape=[3, 32, 64],
+                strides=3,
                 activation=tf.nn.elu,
                 dropout=self.dropout)
         return convo3
@@ -199,23 +198,22 @@ class Classifier:
             shape=[self.batch_size*(self.n_beats+self.overlap)])
         self.keep_prob = tf.placeholder(tf.float32)
 
-        convo = self.create_convo_graph(self.inputs) #b*(n_b+o) x h1 x features
-        print(convo)
+        #convo = self.create_convo_graph(self.inputs) #b*(n_b+o) x h1 x features
+        #print(convo)
 
-        seq_l = tf.cast((self.sequence_length/PARAM['rr']), tf.int32)
+        #seq_l = tf.cast((self.sequence_length/27), tf.int32)
 
-        states = self.create_RNN_graph(convo, seq_l)
+        states = self.create_RNN_graph(self.inputs, self.sequence_length)
         print(states)
             # tuple of fw and bw states with shape b*(n_b+o) x hRNN
 
-        seq_len = self.sequence_length / tf.reduce_mean(self.sequence_length)
-        seq_len = tf.cast(seq_len, tf.float32)
+        seq_len = tf.cast(self.sequence_length, tf.float32)/100
         states_con = tf.concat(1, list(states) +\
             [seq_len[:,None]]) #b*(n_b+o) x 2*hRNN+1
         print(states_con)
 
         states_rs = tf.reshape(states_con, [self.batch_size,
-            self.n_beats+self.overlap, 4*self.nHiddenRNN+1]) #b x (n_b+o) x 2*hRNN+1
+            self.n_beats+self.overlap, 2*self.nHiddenRNN+1]) #b x (n_b+o) x 2*hRNN+1
         print(states_rs)
         
         RNNs = self.create_state_RNN_graph(states_rs) #b*n_b x 2*hRNN
@@ -304,7 +302,6 @@ class Classifier:
                    overlap = PARAM['overlap'],
                    get_data = not(PARAM['use_delta_coding']),
                    get_delta_coded_data = PARAM['use_delta_coding'],
-                   rr = PARAM['rr'],
                    get_events = False)
         
         result = np.zeros([len(data['beats']), len(PARAM['required_diseases'])])

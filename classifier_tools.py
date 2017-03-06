@@ -4,17 +4,15 @@ import os, fnmatch
 import time
 from random import shuffle
 import functools
-import itertools
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import matplotlib
-matplotlib.use("Agg")
+#matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import tqdm as tqdm
 from sklearn.metrics import confusion_matrix
-
 
 import misc
 from parameters import parameters as PARAM
@@ -187,9 +185,7 @@ def step_generator(data,
                    overlap = 5,
                    get_data = False,
                    get_delta_coded_data = False,
-                   get_events = False,
-                   rr = 1):
-    """ rr is reduction ratio """
+                   get_events = False):
     
     #---------------------------------------------------------------------------
     def format_data(channels, start_beat, end_beat):
@@ -197,14 +193,9 @@ def step_generator(data,
         sequence_length = np.empty([0], np.int8)
         channels_part_list = []
         for b in range(start_beat, end_beat):
-            bea = data['beats'][b:b+2]
-            channels_part = np.concatenate([channel[bea[0]:bea[1]][:,None]\
+            channels_part = np.concatenate([np.expand_dims(
+                channel[data['beats'][b]:data['beats'][b+1]], 1)\
                 for channel in channels], 1) #h x c (where h is variable value)
-            
-            if channels_part.shape[0]%rr != 0:
-                pad = (channels_part.shape[0]//rr+1)*rr - channels_part.shape[0]
-                channels_part = np.pad(channels_part, ((0,pad),(0,0)), 'constant')
-            
             channels_part_list.append(channels_part) # list len n_frames+overlap
                 #of arrays h x c (where h is variable value)
 
@@ -384,61 +375,8 @@ def gathering_data_from_chunks(data, list_of_res, overlap=700, n_chunks=32):
     assert data['events'].shape[0] == predicted_events.shape[0], 'Original shape not equal reconstarct shape {0} != {1}'.format(data['events'].shape[0], predicted_events.shape[0])
     return predicted_events
 
-
-def plot_confusion_matrix(true_labels, pred_labels, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues,
-                          save_path = None):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
-
-    cm = np.around(confusion_matrix(true_labels, pred_labels), 3)
-    plt.figure(figsize=(17, 17))
-
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=90)
-    plt.yticks(tick_marks, classes)
-
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, cm[i, j],
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-
-    # Plot normalized confusion matrix
-    if save_path is not None:
-        plt.savefig(save_path)
-    else:
-        plt.show()
-    plt.close()
 #######################################################################################
 #testing
-"""
-data = np.load('../../data/little/AAO1CMED2K865.npy').item()
-gen = step_generator(data,
-                   n_frames = 10,
-                   overlap = 5,
-                   get_data = False,
-                   get_delta_coded_data = True,
-                   get_events = True,
-                   rr = 5)
-
-b = next(gen)
-"""
-
 """
 import sys
 sys.path.append('../../Preprocessing/')
