@@ -73,7 +73,7 @@ with Classifier(batch_size = PARAM['batch_size'],
     #paths = file.read().splitlines()[:100]
 paths = utils.find_files(path_to_predict_data, '*.npy')
 
-
+"""
 with Classifier(batch_size = 1,
                 n_beats = PARAM['n_frames'],
                 overlap = PARAM['overlap'],
@@ -88,7 +88,7 @@ with Classifier(batch_size = 1,
             path_to_predicted_beats = path_to_predictions+os.path.basename(path)[:-4]+\
                 "_events.npy",
             path_to_model = os.path.dirname(path_to_model))
-
+"""
 
 # create logs
 true_l, pred_l = [], []
@@ -96,16 +96,18 @@ for path in paths:
     data = np.load(path).item()
     true_events = data['events'][:, np.in1d(data['disease_name'], PARAM['required_diseases'])]
     pred_events = np.load(path_to_predictions + os.path.basename(path)[:-4]+"_events.npy")
+
     pred_events_l = (pred_events > 0.5).astype(int)
     true_ev = np.hstack((true_events, (true_events.sum(1)[:,None]==0).astype(int)))
     pred_ev = np.hstack((pred_events_l, (pred_events_l.sum(1)[:,None]==0).astype(int)))
-    true_labels = [np.nonzero(true_ev[r])[0][0] for r in range(true_events.shape[0])]\
-        + list(range(len(PARAM['disease_names'])))
-    pred_labels = [np.nonzero(pred_ev[r])[0][0] for r in range(pred_events.shape[0])]\
-        + list(range(len(PARAM['disease_names'])))
+
+    true_labels = [np.nonzero(true_ev[r])[0][0] for r in range(true_events.shape[0])]
+    pred_labels = [np.nonzero(pred_ev[r])[0][0] for r in range(pred_events.shape[0])]
     pred_l += pred_labels
     true_l += true_labels
-    utils.plot_confusion_matrix(true_labels, pred_labels,
+    utils.plot_confusion_matrix(
+        true_labels=true_labels + list(range(len(PARAM['disease_names']))),
+        pred_labels=pred_labels + list(range(len(PARAM['disease_names']))),
         classes=np.insert(PARAM['disease_names'], len(PARAM['disease_names']), 'not_event'),
         normalize=False,
         title='Confusion matrix',
@@ -127,7 +129,9 @@ data = np.load(paths[0]).item()
 diseases=data['disease_name'][np.in1d(data['disease_name'], PARAM['required_diseases'])]
 utils.save_summary(path=path_to_predictions, diseases=diseases)
 
-utils.plot_confusion_matrix(true_l, pred_l,
+utils.plot_confusion_matrix(
+    true_labels=pred_l + list(range(len(PARAM['disease_names']))),
+    pred_labels=true_l + list(range(len(PARAM['disease_names']))),
     classes=np.insert(PARAM['disease_names'], len(PARAM['disease_names']), 'not_event'),
     normalize=False,
     title='Confusion matrix',

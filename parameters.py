@@ -2,7 +2,7 @@ parameters = {
     'sample_rate':175,
     'channels':['ES', 'AS', 'AI'], # input channels ['ES', 'AS
     'convert_to_channels':None, # None if no convertation need ['II', 'V1']
-    'batch_size':128,
+    'batch_size':64,
     'n_frames':5,
     'overlap':6,
     'rr':8,
@@ -12,7 +12,7 @@ parameters = {
     'L2':0.0001,
     'learn_rate':0.001,
     'use_delta_coding':True,
-    'use_chunked_data':True,
+    'use_chunked_data':False,
     'verbose':True,
     'required_diseases':
         ['Atrial_PAC',

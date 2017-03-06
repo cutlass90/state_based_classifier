@@ -394,8 +394,8 @@ def plot_confusion_matrix(true_labels, pred_labels, classes,
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
     """
-    cm = confusion_matrix(true_labels, pred_labels)
-    np.set_printoptions(precision=2)
+
+    cm = np.around(confusion_matrix(true_labels, pred_labels), 3)
     plt.figure(figsize=(17, 17))
 
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
